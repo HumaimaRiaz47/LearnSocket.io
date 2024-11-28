@@ -1,26 +1,53 @@
-import express from "express"
-import {Server} from "socket.io"
-import {createServer} from "http"
-import { Socket } from "dgram"
-import { log } from "console"
+import express from "express";
+import { Server } from "socket.io";
+import { createServer } from "http";
+import cors from "cors";
 
-const app = express()
-const server = createServer(app)
-const io = new Server(server)
+// Initialize Express and HTTP server
+const app = express();
+const server = createServer(app);
 
+// Setup Socket.IO with CORS configuration
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 
-app.get('/', (req, res) => {
-    res.send("hello world")
-})
+// Middleware for CORS
+app.use(cors());
 
+// Route for base endpoint
+app.get("/", (req, res) => {
+  res.send("Hello World");
+});
+
+// Socket.IO connection logic
 io.on("connection", (socket) => {
-    console.log("user connction")
-    console.log("id", socket.id)
-})
+  console.log(`User connected: ${socket.id}`);
 
-const port = 3000
+  // Emit welcome message to the connected user
+  socket.emit("welcome", `Welcome to the server, ${socket.id}`);
 
-app.listen(port, () => {
-    console.log(`server is running on port ${port}`);
-    
-})
+  // Notify other users about the new connection
+  socket.broadcast.emit("welcome", `${socket.id} joined the server`);
+
+  // Handle incoming message event
+  socket.on("message", ({ room, message }) => {
+    console.log(`Room: ${room}, Message: ${message}`);
+    io.to(room).emit("receive-message", message); // Emit message to the specific room
+  });
+
+  // Handle user disconnection
+  socket.on("disconnect", () => {
+    console.log(`User disconnected: ${socket.id}`);
+  });
+});
+
+// Start the server
+const PORT = 3000;
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
